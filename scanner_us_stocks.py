@@ -23,8 +23,8 @@ def get_dynamic_symbols():
     volumes = []
 
     for symbol in base_list:
-    try:
-        df = yf.download(symbol, period="5d", interval="1d", progress=False)
+        try:
+            df = yf.download(symbol, period="5d", interval="1d", progress=False)
 
         if df is None or df.empty:
             continue
