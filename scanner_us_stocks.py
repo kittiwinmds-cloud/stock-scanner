@@ -26,24 +26,23 @@ def get_dynamic_symbols():
         try:
             df = yf.download(symbol, period="5d", interval="1d", progress=False)
 
-        if df is None or df.empty:
+            if df is None or df.empty:
+                continue
+
+            vol = df['Volume'].iloc[-1]
+
+            if isinstance(vol, pd.Series):
+                vol = vol.values[0]
+
+            vol = float(vol)
+
+            volumes.append((symbol, vol))
+
+            time.sleep(0.2)
+
+        except Exception as e:
+            print(f"[!] Skip {symbol}: {e}")
             continue
-
-        vol = df['Volume'].iloc[-1]
-
-        if isinstance(vol, pd.Series):
-            vol = vol.values[0]
-
-        vol = float(vol)
-
-        volumes.append((symbol, vol))
-
-        time.sleep(0.2)
-
-    except Exception as e:
-        print(f"[!] Skip {symbol}: {e}")
-        continue
-
     # 🔥 เรียงจาก Volume สูง
     volumes = sorted(volumes, key=lambda x: x[1], reverse=True)
 
