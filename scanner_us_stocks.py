@@ -15,7 +15,7 @@ def get_dynamic_symbols():
     # กลุ่มหุ้น US ใหญ่ ๆ (ETF + Tech)
     base_list = [
         "AAPL","NVDA","TSLA","MSFT","AMZN","META","GOOGL",
-        "AMD","NFLX","PLTR","COIN","SHOP","SQ","ROKU","SNOW",
+        "AMD","NFLX","PLTR","COIN","SHOP","EOSE","ROKU","SNOW",
         "PANW","CRWD","ZS","NET","DDOG",
         "SPY","QQQ"
     ]
