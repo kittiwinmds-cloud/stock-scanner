@@ -2,7 +2,7 @@ name: Stock Scanner
 
 on:
   schedule:
-    - cron: '*/15 13-20 * * 1-5'
+    - cron: '*/5 * * * *'   # 🔥 ยิงทุก 5 นาที (เทสก่อน)
   workflow_dispatch:
 
 jobs:
