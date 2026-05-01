@@ -5,13 +5,10 @@ import requests
 import os
 import datetime
 
-# =========================
-# 🔐 ENV
-# =========================
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # =========================
-# 📊 SYMBOLS (Dynamic Base)
+# 📊 SYMBOLS
 # =========================
 def get_symbols():
     return [
@@ -29,77 +26,127 @@ def get_symbols():
     ]
 
 # =========================
+# 🧠 CALC SL/TP
+# =========================
+def calculate_trade(last, direction):
+    entry = last['Close']
+    atr = last['atr']
+
+    if direction == "LONG":
+        sl = entry - atr
+        tp = entry + (atr * 2)
+    else:
+        sl = entry + atr
+        tp = entry - (atr * 2)
+
+    rr = abs((tp - entry) / (entry - sl))
+    return entry, sl, tp, rr
+
+# =========================
 # 🔍 SCANNER
 # =========================
 def scan(symbols):
-    results = []
-    movers = []
+    setups = []
 
     for sym in symbols:
         try:
-            df = yf.download(sym, period="5d", interval="1h", progress=False)
+            df = yf.download(sym, period="10d", interval="1h", progress=False)
 
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
 
             df.dropna(inplace=True)
 
-            if len(df) < 50:
+            if len(df) < 100:
                 continue
 
-            # 📊 Indicator
-            df['ema'] = ta.trend.ema_indicator(df['Close'], 100)
+            # Indicators
+            df['ema'] = ta.trend.ema_indicator(df['Close'], 200)
             df['bb_upper'] = ta.volatility.bollinger_hband(df['Close'])
             df['bb_lower'] = ta.volatility.bollinger_lband(df['Close'])
+            df['atr'] = ta.volatility.average_true_range(
+                df['High'], df['Low'], df['Close']
+            )
 
             last = df.iloc[-1]
-            first = df.iloc[0]
 
-            # 📈 % Change (Top mover)
-            change = (last['Close'] - first['Close']) / first['Close'] * 100
-            movers.append((sym, round(change, 2)))
+            # Volume filter
+            avg_vol = df['Volume'].tail(20).mean()
 
-            # 🔥 SIGNAL (ปรับให้มี signal ออกจริง)
-            if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.99:
-                results.append(f"🚀 LONG: {sym}")
+            # 🔥 SIGNAL LOGIC
+            if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] and last['Volume'] > avg_vol:
+                entry, sl, tp, rr = calculate_trade(last, "LONG")
 
-            elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] * 1.01:
-                results.append(f"🔻 SHORT: {sym}")
+                score = rr + ((last['Volume'] / avg_vol) * 0.5)
+
+                setups.append({
+                    "symbol": sym,
+                    "type": "LONG",
+                    "entry": round(entry, 2),
+                    "sl": round(sl, 2),
+                    "tp": round(tp, 2),
+                    "rr": round(rr, 2),
+                    "score": round(score, 2)
+                })
+
+            elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] and last['Volume'] > avg_vol:
+                entry, sl, tp, rr = calculate_trade(last, "SHORT")
+
+                score = rr + ((last['Volume'] / avg_vol) * 0.5)
+
+                setups.append({
+                    "symbol": sym,
+                    "type": "SHORT",
+                    "entry": round(entry, 2),
+                    "sl": round(sl, 2),
+                    "tp": round(tp, 2),
+                    "rr": round(rr, 2),
+                    "score": round(score, 2)
+                })
 
         except Exception as e:
             print(f"[!] {sym} error:", e)
 
-    # 🔝 Top Movers
-    movers.sort(key=lambda x: x[1], reverse=True)
-    top_movers = movers[:5]
-
-    return results, top_movers
+    return setups
 
 # =========================
 # 🚀 RUN
 # =========================
-print("[*] Running scanner...")
+print("[*] Running PRO scanner...")
 
 symbols = get_symbols()
-print(f"Loaded {len(symbols)} symbols")
+setups = scan(symbols)
 
-signals, movers = scan(symbols)
+# =========================
+# 🏆 RANKING
+# =========================
+df = pd.DataFrame(setups)
+
+if not df.empty:
+    df = df.sort_values(by="score", ascending=False)
+    top = df.head(5)
+else:
+    top = pd.DataFrame()
 
 # =========================
 # 📩 MESSAGE
 # =========================
 now = datetime.datetime.utcnow()
 
-msg = "📊 STOCK SCANNER\n\n"
+msg = "📊 TOP SETUPS (PRO)\n\n"
 
-if signals:
-    msg += "\n".join(signals)
+if not top.empty:
+    for i, row in top.iterrows():
+        msg += (
+            f"{row['symbol']} ({row['type']})\n"
+            f"Entry: {row['entry']}\n"
+            f"SL: {row['sl']}\n"
+            f"TP: {row['tp']}\n"
+            f"RR: {row['rr']}\n"
+            f"Score: {row['score']}\n\n"
+        )
 else:
-    msg += "No setup ❌"
-
-msg += "\n\n🔥 Top Movers:\n"
-for m in movers:
-    msg += f"{m[0]}: {m[1]}%\n"
+    msg += "No setup ❌\n"
 
 msg += f"\n⏰ {now} UTC"
 
@@ -116,5 +163,3 @@ if WEBHOOK_URL:
         print("[!] Discord error:", e)
 else:
     print("[!] No WEBHOOK_URL found")
-
-print("WEBHOOK:", WEBHOOK_URL)
