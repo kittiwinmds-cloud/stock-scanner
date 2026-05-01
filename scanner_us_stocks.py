@@ -116,3 +116,5 @@ if WEBHOOK_URL:
         print("[!] Discord error:", e)
 else:
     print("[!] No WEBHOOK_URL found")
+
+print("WEBHOOK:", WEBHOOK_URL)
