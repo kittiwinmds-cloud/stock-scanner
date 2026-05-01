@@ -14,183 +14,68 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 def get_dynamic_symbols():
     # กลุ่มหุ้น US ใหญ่ ๆ (ETF + Tech)
     base_list = [
-        "AAPL","NVDA","TSLA","MSFT","AMZN","META","GOOGL",
-        "AMD","NFLX","PLTR","COIN","SHOP","EOSE","ROKU","SNOW",
-        "PANW","CRWD","ZS","NET","DDOG",
-        "SPY","QQQ"
+        "NVDA","MSFT","AAPL","AMZN","GOOGL","META","PLTR",
+        "TSLA","AMD","SMCI","COIN","SNOW","CRWD",
+        "AVGO","MU","QCOM","INTC","MRVL","AMAT",
+        "JPM","BAC","GS","MS","WFC","C",
+        "XOM","CVX","OXY","SLB","COP",
+        "BA","LMT","RTX","CAT","GE",
+        "NKE","SBUX","MCD","WMT","COST","TGT",
+        "JNJ","PFE","LLY","ABBV","MRK",
+        "NFLX","DIS","CMCSA",
+        "O","PLD","AMT",
+        "SPY","QQQ","IWM","ARKK"
     ]
+def scan():
+    results = []
 
-    volumes = []
-
-    for symbol in base_list:
+    for sym in symbols:
         try:
-            df = yf.download(symbol, period="5d", interval="1d", progress=False)
+            df = yf.download(sym, period="5d", interval="1h", progress=False)
 
-            if df is None or df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+
+            df.dropna(inplace=True)
+
+            if len(df) < 50:
                 continue
 
-            vol = df['Volume'].iloc[-1]
+            df['ema'] = ta.trend.ema_indicator(df['Close'], 100)
+            df['bb_upper'] = ta.volatility.bollinger_hband(df['Close'])
+            df['bb_lower'] = ta.volatility.bollinger_lband(df['Close'])
 
-            if isinstance(vol, pd.Series):
-                vol = vol.values[0]
+            last = df.iloc[-1]
 
-            vol = float(vol)
+            # 🔥 เงื่อนไข (ปรับให้ออก signal ง่ายขึ้น)
+            if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.99:
+                results.append(f"🚀 LONG: {sym}")
 
-            volumes.append((symbol, vol))
-
-            time.sleep(0.2)
+            elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] * 1.01:
+                results.append(f"🔻 SHORT: {sym}")
 
         except Exception as e:
-            print(f"[!] Skip {symbol}: {e}")
-            continue
-    # 🔥 เรียงจาก Volume สูง
-    volumes = sorted(volumes, key=lambda x: x[1], reverse=True)
+            print(f"[!] {sym} error:", e)
 
-    # เอา Top 15
-    top_symbols = [v[0] for v in volumes[:15]]
+    return results
 
-    print("[*] Top Volume Symbols:", top_symbols)
-    return top_symbols
+# =========================
+# RUN
+# =========================
+print("[*] Running scanner...")
 
-# ==============================
-# CLEAN DATA
-# ==============================
-def clean_df(df):
-    if df is None or df.empty:
-        return None
+signals = scan()
 
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    df.reset_index(inplace=True)
-
-    df.rename(columns={
-        'Datetime': 'datetime',
-        'Date': 'datetime',
-        'Open': 'open',
-        'High': 'high',
-        'Low': 'low',
-        'Close': 'close',
-        'Volume': 'volume'
-    }, inplace=True)
-
-    cols = ['open','high','low','close','volume']
-    for col in cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    df.dropna(inplace=True)
-    return df
-
-# ==============================
-# SCORE
-# ==============================
-def calculate_score(prev, last):
-    score = 0
-
-    if last['close'] > last['ema_200']:
-        score += 1
-    else:
-        score -= 1
-
-    if prev['close'] <= prev['bb_upper'] and last['close'] > last['bb_upper']:
-        score += 2
-    elif prev['close'] >= prev['bb_lower'] and last['close'] < last['bb_lower']:
-        score += 2
-
-    if last['volume'] > last['vol_sma']:
-        score += 1
-
-    return score
-
-# ==============================
-# MAIN
-# ==============================
-print("[*] Fetching Dynamic Symbols...")
-SYMBOLS = get_dynamic_symbols()
-
-print("\n[*] Scanning...\n")
-
-results = []
-
-for symbol in SYMBOLS:
-    try:
-        df = yf.download(symbol, interval="1h", period="60d", progress=False)
-
-        df = clean_df(df)
-        if df is None or len(df) < 50:
-            continue
-
-        df['ema_200'] = ta.trend.ema_indicator(df['close'], window=200)
-        df['bb_upper'] = ta.volatility.bollinger_hband(df['close'], window=20)
-        df['bb_lower'] = ta.volatility.bollinger_lband(df['close'], window=20)
-        df['vol_sma'] = df['volume'].rolling(20).mean()
-        df['atr'] = ta.volatility.average_true_range(
-            df['high'], df['low'], df['close'], window=14
-        )
-
-        df.dropna(inplace=True)
-
-        prev = df.iloc[-3]
-        last = df.iloc[-2]
-
-        score = calculate_score(prev, last)
-        if score < 2:
-            continue
-
-        direction = "LONG" if last['close'] > last['ema_200'] else "SHORT"
-
-        entry = last['close']
-        atr = last['atr']
-
-        if direction == "LONG":
-            sl = entry - (2 * atr)
-            tp = entry + (2 * atr * 2)
-        else:
-            sl = entry + (2 * atr)
-            tp = entry - (2 * atr * 2)
-
-        results.append({
-            "symbol": symbol,
-            "direction": direction,
-            "score": score,
-            "entry": round(entry, 2),
-            "sl": round(sl, 2),
-            "tp": round(tp, 2)
-        })
-
-        time.sleep(0.3)
-
-    except Exception as e:
-        print(f"[!] Error {symbol}: {e}")
-
-# ==============================
-# RESULT
-# ==============================
-results = sorted(results, key=lambda x: x['score'], reverse=True)
-top_results = results[:5]
-
-print("========== RESULT ==========")
-
-if not top_results:
-    print("No setup ❌")
+# 🔥 ALWAYS SEND
+if signals:
+    message = "📊 STOCK SCANNER\n\n" + "\n".join(signals)
 else:
-    for r in top_results:
-        print(f"{r['symbol']} {r['direction']} Score:{r['score']}")
-        print(f"Entry:{r['entry']} SL:{r['sl']} TP:{r['tp']}")
-        print("-"*30)
+    message = "📊 STOCK SCANNER\n\nNo setup ❌"
 
-print("============================")
+message += f"\n\n⏰ {datetime.datetime.utcnow()} UTC"
 
-# ==============================
-# DISCORD
-# ==============================
-if top_results and WEBHOOK_URL:
-    msg = f"🚀 DYNAMIC SCANNER ({datetime.now().strftime('%H:%M')})\n\n"
+print(message)
 
-    for r in top_results:
-        msg += (
-            f"{r['symbol']} → {r['direction']} (Score {r['score']})\n"
-            f"Entry:{r['entry']} SL:{r['sl']} TP:{r['tp']}\n\n"
-        )
-
-    requests.post(WEBHOOK_URL, json={"content": msg})
+# 🔥 SEND DISCORD
+if WEBHOOK_URL:
+    requests.post(WEBHOOK_URL, json={"content": message})
