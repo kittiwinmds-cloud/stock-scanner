@@ -3,16 +3,18 @@ import pandas as pd
 import ta
 import requests
 import os
-import time
-from datetime import datetime
+import datetime
 
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+# =========================
+# 🔐 ENV
+# =========================
+WEBHOOK_URL = os.getenv("https://discord.com/api/webhooks/1499397107214188706/VFiKVX7vMo1jn6Vr0oEYqgQIQNQFFwaCLbrZM8R5Rs-_k3Hwn-D20L9aBA3ycSpE4TVf")
 
-# ==============================
-# 🔥 ดึงหุ้น Volume สูง (Dynamic)
-# ==============================
-def get_dynamic_symbols():
-    base_list = [
+# =========================
+# 📊 SYMBOLS (Dynamic Base)
+# =========================
+def get_symbols():
+    return [
         "NVDA","MSFT","AAPL","AMZN","GOOGL","META","PLTR",
         "TSLA","AMD","SMCI","COIN","SNOW","CRWD",
         "AVGO","MU","QCOM","INTC","MRVL","AMAT",
@@ -26,9 +28,12 @@ def get_dynamic_symbols():
         "SPY","QQQ","IWM","ARKK"
     ]
 
-    return base_list  # 🔥 อันนี้ห้ามลืม
-def scan():
+# =========================
+# 🔍 SCANNER
+# =========================
+def scan(symbols):
     results = []
+    movers = []
 
     for sym in symbols:
         try:
@@ -42,13 +47,19 @@ def scan():
             if len(df) < 50:
                 continue
 
+            # 📊 Indicator
             df['ema'] = ta.trend.ema_indicator(df['Close'], 100)
             df['bb_upper'] = ta.volatility.bollinger_hband(df['Close'])
             df['bb_lower'] = ta.volatility.bollinger_lband(df['Close'])
 
             last = df.iloc[-1]
+            first = df.iloc[0]
 
-            # 🔥 เงื่อนไข (ปรับให้ออก signal ง่ายขึ้น)
+            # 📈 % Change (Top mover)
+            change = (last['Close'] - first['Close']) / first['Close'] * 100
+            movers.append((sym, round(change, 2)))
+
+            # 🔥 SIGNAL (ปรับให้มี signal ออกจริง)
             if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.99:
                 results.append(f"🚀 LONG: {sym}")
 
@@ -58,27 +69,50 @@ def scan():
         except Exception as e:
             print(f"[!] {sym} error:", e)
 
-    return results
+    # 🔝 Top Movers
+    movers.sort(key=lambda x: x[1], reverse=True)
+    top_movers = movers[:5]
+
+    return results, top_movers
 
 # =========================
-# RUN
+# 🚀 RUN
 # =========================
 print("[*] Running scanner...")
 
-signals = scan()
+symbols = get_symbols()
+print(f"Loaded {len(symbols)} symbols")
 
-# 🔥 ALWAYS SEND
+signals, movers = scan(symbols)
+
+# =========================
+# 📩 MESSAGE
+# =========================
+now = datetime.datetime.utcnow()
+
+msg = "📊 STOCK SCANNER\n\n"
+
 if signals:
-    message = "📊 STOCK SCANNER\n\n" + "\n".join(signals)
+    msg += "\n".join(signals)
 else:
-    message = "📊 STOCK SCANNER\n\nNo setup ❌"
+    msg += "No setup ❌"
 
-message += f"\n\n⏰ {datetime.datetime.utcnow()} UTC"
+msg += "\n\n🔥 Top Movers:\n"
+for m in movers:
+    msg += f"{m[0]}: {m[1]}%\n"
 
-print(message)
+msg += f"\n⏰ {now} UTC"
 
-# 🔥 SEND DISCORD
+print(msg)
+
+# =========================
+# 📤 DISCORD
+# =========================
 if WEBHOOK_URL:
-    requests.post(WEBHOOK_URL, json={"content": message})
-
-print("Symbols:", symbols[:5])
+    try:
+        requests.post(WEBHOOK_URL, json={"content": msg})
+        print("[+] Sent to Discord")
+    except Exception as e:
+        print("[!] Discord error:", e)
+else:
+    print("[!] No WEBHOOK_URL found")
