@@ -69,8 +69,7 @@ def scan():
             if MODE == "AGGRESSIVE":
 
                 # LONG
-                if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.95 and
-    last['rsi'] > 55:
+                if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.95 and last['rsi'] > 55:
                     sl = entry - atr
                     tp = entry + atr * 2
                     rr = 2
@@ -79,8 +78,7 @@ def scan():
                     setups.append((sym, "LONG", entry, sl, tp, rr, score))
 
                 # SHORT
-                elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] * 1.05 and
-    last['rsi'] < 45:
+                elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] * 1.05 and last['rsi'] < 45:
                     sl = entry + atr
                     tp = entry - atr * 2
                     rr = 2
