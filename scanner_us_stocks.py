@@ -49,7 +49,7 @@ def scan():
 
             if len(df) < 50:
                 continue
-
+            df['rsi'] = ta.momentum.rsi(df['Close'], 14)    
             # Indicators
             df['ema'] = ta.trend.ema_indicator(df['Close'], 100)
             df['bb_upper'] = ta.volatility.bollinger_hband(df['Close'])
@@ -69,7 +69,8 @@ def scan():
             if MODE == "AGGRESSIVE":
 
                 # LONG
-                if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.98:
+                if last['Close'] > last['ema'] and last['Close'] > last['bb_upper'] * 0.95 and
+    last['rsi'] > 55:
                     sl = entry - atr
                     tp = entry + atr * 2
                     rr = 2
@@ -78,7 +79,8 @@ def scan():
                     setups.append((sym, "LONG", entry, sl, tp, rr, score))
 
                 # SHORT
-                elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] * 1.02:
+                elif last['Close'] < last['ema'] and last['Close'] < last['bb_lower'] * 1.05 and
+    last['rsi'] < 45:
                     sl = entry + atr
                     tp = entry - atr * 2
                     rr = 2
@@ -144,7 +146,9 @@ if results:
         )
 else:
     msg += "No setup ❌\n\n"
-
+if not results:
+    msg += "No strong setup ❌\n"
+    msg += "Market sideways 💤\n"
 msg += f"⏰ {now} UTC"
 
 print(msg)
