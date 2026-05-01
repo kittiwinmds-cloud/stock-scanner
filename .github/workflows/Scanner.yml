@@ -2,7 +2,7 @@ name: Stock Scanner
 
 on:
   schedule:
-    - cron: '*/15 13-20 * * 1-5'
+    - cron: '*/15 13-20 * * 1-5'  # ยิงทุก 5 นาที ช่วง US
   workflow_dispatch:
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install -r requirements.txt
+      - run: pip install yfinance pandas ta requests
 
       - name: Run Scanner
         env:
