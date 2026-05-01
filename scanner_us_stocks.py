@@ -12,7 +12,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 # 🔥 ดึงหุ้น Volume สูง (Dynamic)
 # ==============================
 def get_dynamic_symbols():
-    # กลุ่มหุ้น US ใหญ่ ๆ (ETF + Tech)
     base_list = [
         "NVDA","MSFT","AAPL","AMZN","GOOGL","META","PLTR",
         "TSLA","AMD","SMCI","COIN","SNOW","CRWD",
@@ -26,6 +25,8 @@ def get_dynamic_symbols():
         "O","PLD","AMT",
         "SPY","QQQ","IWM","ARKK"
     ]
+
+    return base_list  # 🔥 อันนี้ห้ามลืม
 def scan():
     results = []
 
@@ -79,3 +80,5 @@ print(message)
 # 🔥 SEND DISCORD
 if WEBHOOK_URL:
     requests.post(WEBHOOK_URL, json={"content": message})
+
+print("Symbols:", symbols[:5])
