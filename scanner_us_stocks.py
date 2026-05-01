@@ -8,7 +8,7 @@ import datetime
 # =========================
 # 🔐 ENV
 # =========================
-WEBHOOK_URL = os.getenv("https://discord.com/api/webhooks/1499397107214188706/VFiKVX7vMo1jn6Vr0oEYqgQIQNQFFwaCLbrZM8R5Rs-_k3Hwn-D20L9aBA3ycSpE4TVf")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # =========================
 # 📊 SYMBOLS (Dynamic Base)
